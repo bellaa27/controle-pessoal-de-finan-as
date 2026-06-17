@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinTrack Pro - Gestão de Fluxo Inteligente</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Space Grotesk', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            }
+          }
+        }
+      }
+    </script>
+    <!-- React & UMD Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+      /* Custom printing behaviors */
+      @media print {
+        body { background: white; color: black; }
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+        .print-card { border: 1px solid #e2e8f0; box-shadow: none !important; break-inside: avoid; }
+      }
+      .animate-press:active { transform: scale(0.97); }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef, useMemo } = React;
+
+      // 1. Icon Component for CDN Lucide Rendering
+      function Icon({ name, className = "h-4 w-4" }) {
+        const elRef = useRef(null);
+        useEffect(() => {
+          if (elRef.current && window.lucide) {
+            elRef.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+            window.lucide.createIcons({
+              nameAttr: 'data-lucide',
+              attrs: { class: className },
+              node: elRef.current
+            });
+          }
+        }, [name, className]);
+        return <span ref={elRef} className="inline-flex items-center justify-center shrink-0" />;
+      }
+
+      // 2. Initial Datasets
+      const EXPENSE_CATEGORIES = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Educação', 'Saúde', 'Outros'];
+      const REVENUE_CATEGORIES = ['Salário', 'Freelance', 'Investimentos', 'Outros'];
+      const PAYMENT_METHODS = ['Dinheiro', 'PIX', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência Bancária'];
+      const BANKS = ['Nubank', 'Banco do Brasil', 'Caixa', 'Itaú', 'Bradesco', 'Santander', 'Inter', 'Outros'];
+
+      const initialTransactions = [
+        { id: 'tx-1', type: 'receita', name: 'Salário Regular', category: 'Salário', value: 5500, purchaseDate: '2026-06-05', dueDate: '2026-06-05', paymentMethod: 'Transferência Bancária', bank: 'Nubank', status: 'pago', paymentDate: '2026-06-05', notes: 'Salário mensal clt' },
+        { id: 'tx-2', type: 'receita', name: 'Freelance Design', category: 'Freelance', value: 1200, purchaseDate: '2026-06-12', dueDate: '2026-06-12', paymentMethod: 'PIX', bank: 'Inter', status: 'pago', paymentDate: '2026-06-12' },
+        { id: 'tx-3', type: 'gasto', name: 'Mensalidade Aluguel', category: 'Moradia', value: 1800, purchaseDate: '2026-06-01', dueDate: '2026-06-10', paymentMethod: 'Boleto', bank: 'Caixa', status: 'pago', paymentDate: '2026-06-08' },
+        { id: 'tx-4', type: 'gasto', name: 'Curso de Especialização', category: 'Educação', value: 450, purchaseDate: '2026-06-01', dueDate: '2026-06-15', paymentMethod: 'Boleto', bank: 'Banco do Brasil', status: 'atrasado', notes: 'Efetuar pagamento em atraso' },
+        { id: 'tx-5', type: 'gasto', name: 'Fatura de Energia Enel', category: 'Moradia', value: 185.50, purchaseDate: '2026-06-02', dueDate: '2026-06-18', paymentMethod: 'PIX', bank: 'Nubank', status: 'pendente' }
+      ];
+
+      const initialGoals = [
+        { id: 'g-1', name: 'Reserva de Emergência', targetValue: 12000, currentValue: 4800, deadline: '2026-12-31', notes: 'Reserva de liquidez imediata' },
+        { id: 'g-2', name: 'Férias de Fim de Ano', targetValue: 5000, currentValue: 1850, deadline: '2026-11-30', notes: 'Custos de viagem' }
+      ];
+
+      const initialBudgets = [
+        { category: 'Alimentação', limitValue: 1200 },
+        { category: 'Transporte', limitValue: 500 },
+        { category: 'Lazer', limitValue: 550 },
+        { category: 'Moradia', limitValue: 2200 },
+        { category: 'Educação', limitValue: 800 },
+        { category: 'Saúde', limitValue: 500 },
+        { category: 'Outros', limitValue: 400 }
+      ];
+
+      const initialAccounts = [
+        { id: 'u-1', name: 'Isabella Cardoso', email: 'bella.cardoso.santos0704@gmail.com', avatarColor: 'bg-indigo-650' }
+      ];
+
+      // 3. MAIN APPLICATION
+      function App() {
+        const [activeTab, setActiveTab] = useState('dashboard');
+        const [selectedMonth, setSelectedMonth] = useState('2026-06');
+        const [theme, setTheme] = useState('light');
+
+        const [transactions, setTransactions] = useState([]);
+        const [goals, setGoals] = useState([]);
+        const [budgets, setBudgets] = useState([]);
+        const [accounts, setAccounts] = useState([]);
+        const [activeAccountId, setActiveAccountId] = useState('u-1');
+        const [monthlyEconomyGoal, setMonthlyEconomyGoal] = useState(1200);
+
+        const [isFormOpen, setIsFormOpen] = useState(false);
+        const [editingTransaction, setEditingTransaction] = useState(null);
+
+        // Loaders
+        useEffect(() => {
+          try {
+            const cachedTheme = localStorage.getItem('stand_ft_theme') || 'light';
+            setTheme(cachedTheme);
+
+            const txs = localStorage.getItem('stand_ft_txs');
+            const gls = localStorage.getItem('stand_ft_goals');
+            const bgs = localStorage.getItem('stand_ft_budgets');
+            const accs = localStorage.getItem('stand_ft_accounts');
+            const activeAcc = localStorage.getItem('stand_ft_active_acc');
+            const meg = localStorage.getItem('stand_ft_meg');
+
+            setTransactions(txs ? JSON.parse(txs) : initialTransactions);
+            setGoals(gls ? JSON.parse(gls) : initialGoals);
+            setBudgets(bgs ? JSON.parse(bgs) : initialBudgets);
+            setAccounts(accs ? JSON.parse(accs) : initialAccounts);
+            setActiveAccountId(activeAcc || 'u-1');
+            setMonthlyEconomyGoal(meg ? Number(meg) : 1200);
+          } catch (e) {
+            setTransactions(initialTransactions);
+            setGoals(initialGoals);
+            setBudgets(initialBudgets);
+            setAccounts(initialAccounts);
+          }
+        }, []);
+
+        // Syncer
+        useEffect(() => { if (transactions.length) localStorage.setItem('stand_ft_txs', JSON.stringify(transactions)); }, [transactions]);
+        useEffect(() => { if (goals.length) localStorage.setItem('stand_ft_goals', JSON.stringify(goals)); }, [goals]);
+        useEffect(() => { if (budgets.length) localStorage.setItem('stand_ft_budgets', JSON.stringify(budgets)); }, [budgets]);
+        useEffect(() => { if (accounts.length) localStorage.setItem('stand_ft_accounts', JSON.stringify(accounts)); }, [accounts]);
+        useEffect(() => { if (activeAccountId) localStorage.setItem('stand_ft_active_acc', activeAccountId); }, [activeAccountId]);
+        useEffect(() => { localStorage.setItem('stand_ft_meg', String(monthlyEconomyGoal)); }, [monthlyEconomyGoal]);
+
+        useEffect(() => {
+          const root = document.documentElement;
+          if (theme === 'dark') root.classList.add('dark');
+          else root.classList.remove('dark');
+          localStorage.setItem('stand_ft_theme', theme);
+        }, [theme]);
+
+        const getMonthsList = useMemo(() => {
+          const months = Array.from(new Set(transactions.map(t => t.purchaseDate.substring(0, 7))));
+          months.sort((a, b) => b.localeCompare(a));
+          const monthNames = {
+            '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril', '05': 'Maio', '06': 'Junho',
+            '07': 'Julho', '08': 'Agosto', '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+          };
+          return months.map(m => {
+            const parts = m.split('-');
+            return { value: m, label: `${monthNames[parts[1]] || 'Mês'} de ${parts[0]}` };
+          });
+        }, [transactions]);
+
+        const filteredTransactions = useMemo(() => {
+          if (selectedMonth === 'all') return transactions;
+          return transactions.filter(t => t.purchaseDate.startsWith(selectedMonth));
+        }, [transactions, selectedMonth]);
+
+        const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0] || { name: 'Isabella Cardoso', email: '', avatarColor: 'bg-indigo-650' };
+
+        const handleSaveTransaction = (data) => {
+          const today = new Date().toISOString().split('T')[0];
+          if (data.id) {
+            setTransactions(prev => prev.map(t => t.id === data.id ? { ...t, ...data } : t));
+          } else {
+            const newTx = {
+              id: `tx-${Date.now()}`,
+              ...data,
+              purchaseDate: data.purchaseDate || today,
+              dueDate: data.dueDate || today,
+              paymentDate: data.status === 'pago' ? (data.paymentDate || today) : undefined
+            };
+            setTransactions(prev => [newTx, ...prev]);
+          }
+          setIsFormOpen(false);
+          setEditingTransaction(null);
+        };
+
+        const handleDeleteTransaction = (id) => {
+          setTransactions(prev => prev.filter(t => t.id !== id));
+        };
+
+        const handleQuickPay = (id) => {
+          const today = new Date().toISOString().split('T')[0];
+          setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'pago', paymentDate: today } : t));
+        };
+
+        const handleAddGoal = (goal) => {
+          setGoals(prev => [...prev, { id: `g-${Date.now()}`, ...goal }]);
+        };
+
+        const handleDeleteGoal = (id) => {
+          setGoals(prev => prev.filter(g => g.id !== id));
+        };
+
+        const handleModifyGoalProgress = (id, amt) => {
+          setGoals(prev => prev.map(g => g.id === id ? { ...g, currentValue: Math.max(0, g.currentValue + amt) } : g));
+        };
+
+        const handleAddAccount = (name, email) => {
+          const colors = ['bg-indigo-650', 'bg-violet-600', 'bg-sky-600', 'bg-rose-600', 'bg-amber-600'];
+          const avatarColor = colors[Math.floor(Math.random() * colors.length)];
+          setAccounts(prev => [...prev, { id: `u-${Date.now()}`, name, email, avatarColor }]);
+        };
+
+        const handleResetAll = () => {
+          if (confirm('Deseja realmente formatar o armazenamento local? Todos os dados serão recarregados.')) {
+            localStorage.clear();
+            setTransactions(initialTransactions);
+            setGoals(initialGoals);
+            setBudgets(initialBudgets);
+            setAccounts(initialAccounts);
+            setActiveAccountId('u-1');
+            setMonthlyEconomyGoal(1200);
+            setSelectedMonth('2026-06');
+            setActiveTab('dashboard');
+          }
+        };
+
+        // Budget analysis
+        const activeMonthGastos = filteredTransactions.filter(t => t.type === 'gasto');
+        const overdueTxs = transactions.filter(t => t.type === 'gasto' && t.status === 'atrasado');
+
+        const categorySpent = {};
+        activeMonthGastos.forEach(g => {
+          categorySpent[g.category] = (categorySpent[g.category] || 0) + g.value;
+        });
+        const exceededBudgetsCount = budgets.filter(b => (categorySpent[b.category] || 0) > b.limitValue).length;
+
+        return (
+          <div className="flex flex-col min-h-screen">
+            {/* Header */}
+            <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 no-print">
+              <div className="mx-auto flex max-w-7xl h-16 items-center justify-between px-4">
+                <div className="flex items-center space-x-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20">
+                    <span className="font-display text-xl font-bold">F</span>
+                  </div>
+                  <div>
+                    <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-tight">FinTrack Pro</h1>
+                    <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">Offline Standalone Edition</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-4">
+                  {/* Month Picker */}
+                  <div className="relative">
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      className="appearance-none font-sans text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 pl-3 pr-8 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="all">Histórico Completo</option>
+                      {getMonthsList.map(m => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Account display */}
+                  <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${activeAccount.avatarColor}`}>
+                    {activeAccount.name[0]}
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {/* Layout Main context */}
+            <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 flex flex-col md:flex-row gap-6">
+              {/* Sidebar Menu */}
+              <aside className="w-full md:w-56 shrink-0 flex md:flex-col gap-1.5 no-print">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="layout-dashboard" className="h-4 w-4" />
+                  <span className="hidden md:inline">Painel Geral</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('transactions')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'transactions' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="arrow-right-left" className="h-4 w-4" />
+                  <span className="hidden md:inline">Lançamentos</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('goals')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'goals' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="target" className="h-4 w-4" />
+                  <span className="hidden md:inline">Objetivos</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3 py-2.5 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="settings" className="h-4 w-4" />
+                  <span className="hidden md:inline">Configurações</span>
+                </button>
+
+                <div className="hidden md:block pt-4 border-t border-slate-200 dark:border-slate-800 mt-2">
+                  <button
+                    onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                    className="w-full bg-indigo-650 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 cursor-pointer animate-press"
+                  >
+                    <Icon name="plus" className="h-3.5 w-3.5" />
+                    <span>Lançar Fluxo</span>
+                  </button>
+                </div>
+              </aside>
+
+              {/* View Content area */}
+              <div className="flex-1 min-w-0">
+                {overdueTxs.length > 0 && activeTab === 'dashboard' && (
+                  <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 p-3.5 text-xs text-rose-800 dark:border-rose-950/30 dark:bg-rose-950/10 dark:text-rose-400 flex items-center gap-3 no-print">
+                    <Icon name="alert-triangle" className="h-5 w-5 text-rose-500 shrink-0" />
+                    <div>
+                      <span className="font-bold">Atenção: </span>Você possui {overdueTxs.length} lançamento(s) atrasados no histórico geral que requerem atenção.
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'dashboard' && (
+                  <DashboardView
+                    txs={filteredTransactions}
+                    budgets={budgets}
+                    onOpenForm={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                    onMarkPaid={handleQuickPay}
+                    onNavigateTxs={() => setActiveTab('transactions')}
+                    exceededCount={exceededBudgetsCount}
+                  />
+                )}
+
+                {activeTab === 'transactions' && (
+                  <TransactionListView
+                    txs={filteredTransactions}
+                    onEdit={(t) => { setEditingTransaction(t); setIsFormOpen(true); }}
+                    onDelete={handleDeleteTransaction}
+                    onMarkPaid={handleQuickPay}
+                    onAddNew={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                  />
+                )}
+
+                {activeTab === 'goals' && (
+                  <GoalsView
+                    txs={filteredTransactions}
+                    goals={goals}
+                    onAddGoal={handleAddGoal}
+                    onDeleteGoal={handleDeleteGoal}
+                    onModifyProgress={handleModifyGoalProgress}
+                    monthlyGoal={monthlyEconomyGoal}
+                    setMonthlyGoal={setMonthlyEconomyGoal}
+                  />
+                )}
+
+                {activeTab === 'settings' && (
+                  <SettingsView
+                    theme={theme}
+                    setTheme={setTheme}
+                    accounts={accounts}
+                    activeAccountId={activeAccountId}
+                    setActiveAccountId={setActiveAccountId}
+                    onAddAccount={handleAddAccount}
+                    onReset={handleResetAll}
+                  />
+                )}
+              </div>
+            </main>
+
+            {/* Quick mobile add floating indicator */}
+            <div className="fixed bottom-4 right-4 z-50 md:hidden no-print">
+              <button
+                onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                className="bg-indigo-650 text-white p-3.5 rounded-full shadow-lg"
+              >
+                <Icon name="plus" className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Transaction Form Overlay Modal */}
+            {isFormOpen && (
+              <TransactionFormView
+                transaction={editingTransaction}
+                onSave={handleSaveTransaction}
+                onClose={() => { setIsFormOpen(false); setEditingTransaction(null); }}
+              />
+            )}
+          </div>
+        );
+      }
+
+      // ==========================================
+      // SUBCOMPONENTS CODES
+      // ==========================================
+      function DashboardView({ txs, budgets, onOpenForm, onMarkPaid, onNavigateTxs, exceededCount }) {
+        const stats = useMemo(() => {
+          let rec = 0, gas = 0;
+          txs.forEach(t => {
+            if (t.type === 'receita') rec += t.value;
+            else if (t.type === 'gasto') gas += t.value;
+          });
+          return { receita: rec, gasto: gas, saldo: rec - gas };
+        }, [txs]);
+
+        const recentTxs = useMemo(() => [...txs].slice(0, 5), [txs]);
+
+        const categoryUsage = useMemo(() => {
+          const used = {};
+          txs.filter(t => t.type === 'gasto').forEach(t => {
+            used[t.category] = (used[t.category] || 0) + t.value;
+          });
+          return budgets.map(b => {
+            const spent = used[b.category] || 0;
+            const pct = b.limitValue > 0 ? (spent / b.limitValue) * 100 : 0;
+            return { category: b.category, limit: b.limitValue, spent, pct };
+          });
+        }, [txs, budgets]);
+
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm relative overflow-hidden">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Saldo do Período</span>
+                <h3 className="text-2xl font-bold">R$ {stats.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-indigo-500 opacity-60"></div>
+              </div>
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Entradas (Período)</span>
+                <h3 className="text-2xl font-bold text-emerald-600">R$ {stats.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Saídas (Período)</span>
+                <h3 className="text-2xl font-bold text-rose-650">R$ {stats.gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 dark:border-slate-800">
+                  <h4 className="font-display font-bold text-sm">Transações Recentes</h4>
+                  <button onClick={onNavigateTxs} className="text-[10px] text-indigo-650 font-bold hover:underline">Ver Todos</button>
+                </div>
+                {recentTxs.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-6">Nenhum lançamento no período.</p>
+                ) : (
+                  <div className="divide-y divide-slate-150 dark:divide-slate-800 font-sans text-xs">
+                    {recentTxs.map(t => (
+                      <div key={t.id} className="py-2.5 flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <span className={`h-6 w-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${t.type === 'receita' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                            {t.type === 'receita' ? '+' : '-'}
+                          </span>
+                          <div>
+                            <span className="font-semibold block truncate max-w-[200px]">{t.name}</span>
+                            <span className="text-[9px] text-slate-400 font-mono block">{t.category} • {t.purchaseDate}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-mono font-semibold block ${t.type === 'receita' ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-200'}`}>R$ {t.value.toFixed(2)}</span>
+                          <span className="text-[8px] uppercase tracking-wider block font-bold text-slate-400">{t.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-sm space-y-4">
+                <div className="border-b pb-2 dark:border-slate-800 flex justify-between items-center">
+                  <h4 className="font-display font-bold text-sm">Limites de Categoria</h4>
+                </div>
+                <div className="space-y-3.5">
+                  {categoryUsage.map(c => {
+                    const isOver = c.spent > c.limit;
+                    return (
+                      <div key={c.category} className="space-y-1">
+                        <div className="flex justify-between text-xs font-semibold">
+                          <span>{c.category}</span>
+                          <span className="font-mono text-slate-400 text-[10px]">R$ {c.spent.toFixed(0)} / <span className="text-slate-600 dark:text-slate-300">R$ {c.limit}</span></span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${isOver ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, c.pct)}%` }}></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function TransactionListView({ txs, onEdit, onDelete, onMarkPaid, onAddNew }) {
+        const [search, setSearch] = useState('');
+        const [typeFilter, setTypeFilter] = useState('all');
+
+        const listing = useMemo(() => {
+          return txs.filter(t => {
+            const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase()) || t.category.toLowerCase().includes(search.toLowerCase());
+            const matchesType = typeFilter === 'all' || t.type === typeFilter;
+            return matchesSearch && matchesType;
+          });
+        }, [txs, search, typeFilter]);
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display font-bold text-sm">Histórico Detalhado do Período</h3>
+              <button onClick={onAddNew} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1">
+                <Icon name="plus" className="h-3.5 w-3.5" /> Adicionar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                type="text"
+                placeholder="Filtrar por nome/categoria..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-white dark:bg-slate-900"
+              />
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-white dark:bg-slate-900"
+              >
+                <option value="all">Tipo (Todos)</option>
+                <option value="receita">Receitas (+)</option>
+                <option value="gasto">Gastos (-)</option>
+              </select>
+            </div>
+
+            <div className="rounded-2xl border bg-white dark:bg-slate-900 overflow-hidden dark:border-slate-800">
+              {listing.length === 0 ? (
+                <p className="p-8 text-center text-xs text-slate-400">Nenhum lançamento corresponde à busca.</p>
+              ) : (
+                <div className="overflow-x-auto text-xs">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-850 border-b dark:border-slate-800 text-[9px] uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="p-3">Descrição</th>
+                        <th className="p-3">Vencimento</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Valor Urgente</th>
+                        <th className="p-3 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-slate-800">
+                      {listing.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                          <td className="p-3 font-semibold">
+                            <span>{t.name}</span>
+                            <span className="block text-[9px] text-indigo-600 font-medium">{t.category}</span>
+                          </td>
+                          <td className="p-3 font-mono">{t.dueDate}</td>
+                          <td className="p-3">
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${t.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold">R$ {t.value.toFixed(2)}</td>
+                          <td className="p-3 text-center">
+                            <div className="flex justify-center space-x-1">
+                              {t.status !== 'pago' && (
+                                <button onClick={() => onMarkPaid(t.id)} className="bg-indigo-650 hover:bg-indigo-700 text-white rounded px-2 py-0.5 font-bold text-[10px]">Pagar</button>
+                              )}
+                              <button onClick={() => onEdit(t)} className="text-slate-450 hover:text-indigo-650 p-1">✏️</button>
+                              <button onClick={() => { if (confirm('Excluir?')) onDelete(t.id); }} className="text-rose-500 p-1">🗑️</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      function GoalsView({ txs, goals, onAddGoal, onDeleteGoal, onModifyProgress, monthlyGoal, setMonthlyGoal }) {
+        const [showAddForm, setShowAddForm] = useState(false);
+        const [name, setName] = useState('');
+        const [target, setTarget] = useState('');
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          if (!name || !target) return;
+          onAddGoal({ name, targetValue: Number(target), currentValue: 0, deadline: '2026-12-31' });
+          setName(''); setTarget(''); setShowAddForm(false);
+        };
+
+        const currentBalance = useMemo(() => {
+          let rec = 0, gas = 0;
+          txs.forEach(t => {
+            if (t.type === 'receita') rec += t.value;
+            else if (t.type === 'gasto') gas += t.value;
+          });
+          return rec - gas;
+        }, [txs]);
+
+        return (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-tr from-indigo-800 to-indigo-600 rounded-2xl p-5 text-white shadow-md">
+              <h4 className="font-display font-semibold text-lg">Metas de Economia de Período</h4>
+              <p className="text-xs text-indigo-10/90 leading-relaxed mt-1">Defina sua expectativa de superávit contábil geral para este período de lançamentos ativos.</p>
+              
+              <div className="flex items-center space-x-3 mt-4">
+                <span className="text-xs">Sua Meta Estimada:</span>
+                <input
+                  type="number"
+                  value={monthlyGoal || ''}
+                  onChange={(e) => setMonthlyGoal(e.target.value === '' ? 0 : Number(e.target.value))}
+                  className="bg-white text-slate-900 border-none rounded-lg px-2 py-1 text-xs font-bold w-28"
+                />
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-white/25 flex text-[11px] justify-between">
+                <span>Saldo Geral do Período: <b>R$ {currentBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</b></span>
+                <span>{currentBalance >= monthlyGoal ? 'Meta Batida! 🎉' : 'Meta Pendente ⏳'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-display font-medium text-sm">Objetivos de Poupança Integradas</h4>
+                <button onClick={() => setShowAddForm(!showAddForm)} className="text-xs font-bold text-indigo-650 hover:underline">Novo Objetivo</button>
+              </div>
+
+              {showAddForm && (
+                <form onSubmit={handleSubmit} className="p-4 bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 space-y-3 max-w-sm">
+                  <input type="text" placeholder="Nome do objetivo, ex: Viagem" value={name} onChange={(e) => setName(e.target.value)} required className="w-full text-xs p-2 rounded-lg border bg-slate-50 dark:bg-slate-850 dark:border-slate-850" />
+                  <input type="number" placeholder="Valor Alvo (R$)" value={target} onChange={(e) => setTarget(e.target.value)} required className="w-full text-xs p-2 rounded-lg border bg-slate-50 dark:bg-slate-850 dark:border-slate-850" />
+                  <button type="submit" className="w-full text-xs font-bold bg-indigo-600 text-white p-2 rounded-lg leading-none">Criar Meta de Poupança</button>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {goals.map(g => {
+                  const pct = Math.min(100, (g.currentValue / g.targetValue) * 100);
+                  return (
+                    <div key={g.id} className="rounded-xl border bg-white p-4 dark:bg-slate-900 dark:border-slate-800 space-y-3 relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h5 className="font-semibold text-xs leading-none">{g.name}</h5>
+                          <span className="text-[9px] text-slate-400 font-mono">Alvo: R$ {g.targetValue}</span>
+                        </div>
+                        <button onClick={() => onDeleteGoal(g.id)} className="text-rose-500 text-[10px]">Excluir</button>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-semibold text-slate-500">
+                          <span>Pouco a Pouco: R$ {g.currentValue}</span>
+                          <span>{pct.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div className="bg-emerald-500 h-full" style={{ width: `${pct}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 text-[10px]">
+                        <button onClick={() => onModifyProgress(g.id, 100)} className="bg-slate-55 border p-1 rounded font-semibold text-slate-700 dark:text-slate-300 dark:bg-slate-800 shrink-0">+R$100</button>
+                        <button onClick={() => onModifyProgress(g.id, 500)} className="bg-slate-55 border p-1 rounded font-semibold text-slate-700 dark:text-slate-300 dark:bg-slate-800 shrink-0">+R$500</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function SettingsView({ theme, setTheme, accounts, activeAccountId, setActiveAccountId, onAddAccount, onReset }) {
+        const [showForm, setShowForm] = useState(false);
+        const [name, setName] = useState('');
+        const [email, setEmail] = useState('');
+
+        const handleFormSubmit = (e) => {
+          e.preventDefault();
+          if (!name || !email) return;
+          onAddAccount(name, email);
+          setName(''); setEmail(''); setShowForm(false);
+        };
+
+        return (
+          <div className="space-y-6 font-sans">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-5 border bg-white dark:bg-slate-900 rounded-2xl dark:border-slate-800 space-y-4">
+                <h4 className="font-display font-bold text-sm">Tema Visual</h4>
+                <button
+                  onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+                  className="w-full bg-slate-50 border p-2 rounded-xl text-xs font-semibold flex justify-center items-center gap-1.5 dark:bg-slate-800 dark:border-slate-800 cursor-pointer"
+                >
+                  <span>{theme === 'light' ? '🌙 Ativar Tema Escuro' : '☀️ Ativar Tema Claro'}</span>
+                </button>
+              </div>
+
+              <div className="p-5 border bg-white dark:bg-slate-900 rounded-2xl dark:border-slate-800 space-y-4">
+                <h4 className="font-display font-semibold text-sm text-rose-500">Módulo Redefinir</h4>
+                <button
+                  onClick={onReset}
+                  className="w-full bg-rose-50 hover:bg-rose-100 border-none p-2 rounded-xl text-xs font-bold text-rose-600 cursor-pointer"
+                >
+                  Resetar Memória Local
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 border bg-white dark:bg-slate-900 rounded-2xl dark:border-slate-800 space-y-4">
+              <div className="flex justify-between items-center border-b pb-2 dark:border-slate-850">
+                <h4 className="font-display font-medium text-sm">Contas e Perfis Cadastrados</h4>
+                <button onClick={() => setShowForm(!showForm)} className="text-xs font-bold text-indigo-650 hover:underline">Criar Perfil</button>
+              </div>
+
+              {showForm && (
+                <form onSubmit={handleFormSubmit} className="p-3 bg-slate-50 dark:bg-slate-850 rounded-xl space-y-2.5 max-w-sm border dark:border-slate-800">
+                  <input type="text" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} required className="w-full text-xs p-2 rounded border bg-white dark:bg-slate-900" />
+                  <input type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full text-xs p-2 rounded border bg-white dark:bg-slate-900" />
+                  <button type="submit" className="w-full bg-indigo-600 text-white text-xs font-semibold p-2 rounded">Salvar Novo Perfil</button>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {accounts.map(a => {
+                  const isActive = a.id === activeAccountId;
+                  return (
+                    <div
+                      key={a.id}
+                      onClick={() => setActiveAccountId(a.id)}
+                      className={`p-3 border rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-800/10 cursor-pointer flex items-center space-x-2.5 ${isActive ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20' : 'dark:border-slate-800'}`}
+                    >
+                      <div className={`h-7 w-7 rounded-lg flex items-center justify-center font-bold text-white text-xs ${a.avatarColor}`}>
+                        {a.name[0]}
+                      </div>
+                      <div className="truncate flex-1">
+                        <span className="font-semibold block leading-tight text-xs">{a.name}</span>
+                        <span className="text-[9px] text-slate-400 truncate block mt-0.5">{a.email}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function TransactionFormView({ transaction, onSave, onClose }) {
+        const [name, setName] = useState(transaction?.name || '');
+        const [value, setValue] = useState(transaction?.value || '');
+        const [type, setType] = useState(transaction?.type || 'gasto');
+        const [category, setCategory] = useState(transaction?.category || 'Alimentação');
+        const [paymentMethod, setPaymentMethod] = useState(transaction?.paymentMethod || 'PIX');
+        const [bank, setBank] = useState(transaction?.bank || 'Nubank');
+        const [status, setStatus] = useState(transaction?.status || 'pendente');
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          onSave({
+            id: transaction?.id,
+            name,
+            value: Number(value),
+            type,
+            category,
+            paymentMethod,
+            bank,
+            status
+          });
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-center border-b pb-2 dark:border-slate-800">
+                <h4 className="font-display font-bold text-sm">{transaction ? 'Editar Lançamento' : 'Novo Lançamento Financeiro'}</h4>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setType('gasto')} className={`p-2 rounded-xl font-bold border text-center ${type === 'gasto' ? 'bg-rose-50 text-rose-600 border-rose-200' : 'border-slate-200 dark:border-slate-800'}`}>Despesa</button>
+                  <button type="button" onClick={() => setType('receita')} className={`p-2 rounded-xl font-bold border text-center ${type === 'receita' ? 'bg-emerald-50 text-emerald-600 border-emerald-250' : 'border-slate-200 dark:border-slate-800'}`}>Rendimento</button>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-slate-400">Descrição do lançamento</label>
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Ex: Supermercado" className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-slate-400">Valor Operado (R$)</label>
+                  <input type="number" step="any" value={value} onChange={(e) => setValue(e.target.value)} required placeholder="Ex: 85.50" className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-slate-400">Categoria de classificação</label>
+                  <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                    {type === 'gasto' ? EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>) : REVENUE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-slate-400">Canal</label>
+                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                      {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-mono text-slate-400">Instituição</label>
+                    <select value={bank} onChange={(e) => setBank(e.target.value)} className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                      {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-mono text-slate-400">Estado de Liquidação</label>
+                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full text-xs p-2.5 rounded-lg border dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                    <option value="pendente">Pendente / Aberto</option>
+                    <option value="pago">Pago / Liquidado</option>
+                    <option value="atrasado">Atrasado / Pendente</option>
+                  </select>
+                </div>
+
+                <div className="flex space-x-2 pt-2">
+                  <button type="button" onClick={onClose} className="flex-1 border p-2.5 font-bold rounded-lg leading-none cursor-pointer">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 font-bold rounded-lg leading-none cursor-pointer">Confirmar Lançamento</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>

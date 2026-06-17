@@ -1,0 +1,6 @@
+{
+  "name": "Controle Financeiro Mensal",
+  "description": "Aplicativo para registrar, acompanhar e analisar despesas e receitas mensais com controle de pagamentos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1651 @@
+<!doctype html>
+<html lang="pt-BR" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinTrack Pro - Gestão de Fluxo Inteligente</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <!-- Tailwind CSS with custom font and dark mode config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              display: ['Space Grotesk', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              indigo: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                200: '#c7d2fe',
+                300: '#a5b4fc',
+                400: '#818cf8',
+                500: '#6366f1',
+                600: '#4f46e5',
+                650: '#4338ca',
+                700: '#4338ca',
+                800: '#3730a3',
+                900: '#312e81',
+                950: '#1e1b4b',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <!-- React & UMD Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+      /* Printing Optimization styling */
+      @media print {
+        body { background: white !important; color: black !important; }
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+        .print-card { border: 1px solid #e2e8f0 !important; box-shadow: none !important; break-inside: avoid; }
+      }
+      
+      /* Smooth interactions */
+      .animate-press:active { transform: scale(0.97); }
+      
+      /* Hide scrollbars for tidy visual look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef, useMemo } = React;
+
+      // ==========================================
+      // CONSTANTS & MOCK DATA
+      // ==========================================
+      const EXPENSE_CATEGORIES = ['Alimentação', 'Transporte', 'Lazer', 'Moradia', 'Educação', 'Saúde', 'Outros'];
+      const REVENUE_CATEGORIES = ['Salário', 'Freelance', 'Investimentos', 'Reembolso', 'Outros'];
+      const PAYMENT_METHODS = ['Dinheiro', 'PIX', 'Cartão de Débito', 'Cartão de Crédito', 'Boleto', 'Transferência Bancária'];
+      const BANKS = ['Nubank', 'Banco do Brasil', 'Caixa', 'Itaú', 'Bradesco', 'Santander', 'Inter', 'Sicredi', 'Cooperativas', 'Outros'];
+
+      const defaultUsers = [
+        { id: 'user-1', name: 'Isabella Cardoso', email: 'bella.cardoso.santos0704@gmail.com', avatarColor: 'bg-emerald-500' }
+      ];
+
+      const defaultGoals = [
+        { id: 'goal-1', name: 'Reserva de Emergência', targetValue: 12000, currentValue: 4800, deadline: '2026-12-31', notes: 'Guardar pelo menos R$ 500 por mês no fundo de renda fixa.' },
+        { id: 'goal-2', name: 'Viagem de Fim de Ano', targetValue: 5000, currentValue: 1850, deadline: '2026-11-30', notes: 'Passagens e hospedagem na praia.' },
+        { id: 'goal-3', name: 'Troca de Notebook', targetValue: 6000, currentValue: 4000, deadline: '2026-09-15', notes: 'Comprar modelo com melhor desempenho para trabalho.' }
+      ];
+
+      const defaultBudgets = [
+        { category: 'Alimentação', limitValue: 1200 },
+        { category: 'Transporte', limitValue: 500 },
+        { category: 'Lazer', limitValue: 600 },
+        { category: 'Moradia', limitValue: 2200 },
+        { category: 'Educação', limitValue: 800 },
+        { category: 'Saúde', limitValue: 400 },
+        { category: 'Outros', limitValue: 300 }
+      ];
+
+      const defaultTransactions = [
+        // --- MAIO 2026 ---
+        { id: 'tx-m-1', type: 'receita', name: 'Salário Mensal', category: 'Salário', value: 5500, purchaseDate: '2026-05-05', dueDate: '2026-05-05', paymentMethod: 'Transferência Bancária', bank: 'Nubank', status: 'pago', paymentDate: '2026-05-05', notes: 'Salário regular da CLT' },
+        { id: 'tx-m-2', type: 'receita', name: 'Projeto Freelance UX', category: 'Freelance', value: 1100, purchaseDate: '2026-05-15', dueDate: '2026-05-15', paymentMethod: 'PIX', bank: 'Inter', status: 'pago', paymentDate: '2026-05-15' },
+        { id: 'tx-m-3', type: 'gasto', name: 'Aluguel do Apartamento', category: 'Moradia', value: 1800, purchaseDate: '2026-05-01', dueDate: '2026-05-10', paymentMethod: 'Boleto', bank: 'Caixa', status: 'pago', paymentDate: '2026-05-09' },
+        { id: 'tx-m-4', type: 'gasto', name: 'Supermercado Central', category: 'Alimentação', value: 850.40, purchaseDate: '2026-05-08', dueDate: '2026-05-25', paymentMethod: 'Cartão de Crédito', bank: 'Nubank', status: 'pago', paymentDate: '2026-05-20' },
+        { id: 'tx-m-5', type: 'gasto', name: 'Mensalidade Faculdade', category: 'Educação', value: 450, purchaseDate: '2026-05-01', dueDate: '2026-05-15', paymentMethod: 'Boleto', bank: 'Banco do Brasil', status: 'pago', paymentDate: '2026-05-13' },
+        { id: 'tx-m-6', type: 'gasto', name: 'Cinema e Jantar Fim de Semana', category: 'Lazer', value: 185.90, purchaseDate: '2026-05-16', dueDate: '2026-05-16', paymentMethod: 'Cartão de Débito', bank: 'Itaú', status: 'pago', paymentDate: '2026-05-16' },
+        { id: 'tx-m-7', type: 'gasto', name: 'Combustível Posto Ipiranga', category: 'Transporte', value: 220, purchaseDate: '2026-05-20', dueDate: '2026-05-25', paymentMethod: 'Cartão de Crédito', bank: 'Bradesco', status: 'pago', paymentDate: '2026-05-24' },
+        { id: 'tx-m-8', type: 'gasto', name: 'Exames de Rotina', category: 'Saúde', value: 120, purchaseDate: '2026-05-12', dueDate: '2026-05-12', paymentMethod: 'PIX', bank: 'Nubank', status: 'pago', paymentDate: '2026-05-12' },
+        { id: 'tx-m-9', type: 'gasto', name: 'Assinatura Streaming', category: 'Lazer', value: 55.90, purchaseDate: '2026-05-28', dueDate: '2026-05-28', paymentMethod: 'Cartão de Crédito', bank: 'Nubank', status: 'pago', paymentDate: '2026-05-28' },
+
+        // --- JUNHO 2026 ---
+        { id: 'tx-j-1', type: 'receita', name: 'Salário Clt', category: 'Salário', value: 5500, purchaseDate: '2026-06-05', dueDate: '2026-06-05', paymentMethod: 'Transferência Bancária', bank: 'Nubank', status: 'pago', paymentDate: '2026-06-05', notes: 'Salário mensal recebido integralmente' },
+        { id: 'tx-j-2', type: 'receita', name: 'Projeto Website Freelance', category: 'Freelance', value: 1400, purchaseDate: '2026-06-12', dueDate: '2026-06-12', paymentMethod: 'PIX', bank: 'Inter', status: 'pago', paymentDate: '2026-06-12', notes: 'Desenvolvimento de Landing Page institucional' },
+        { id: 'tx-j-3', type: 'gasto', name: 'Aluguel do Apartamento', category: 'Moradia', value: 1800, purchaseDate: '2026-06-01', dueDate: '2026-06-10', paymentMethod: 'Boleto', bank: 'Caixa', status: 'pago', paymentDate: '2026-06-08', notes: 'Aluguel fixo com condomínio incluso' },
+        { id: 'tx-j-4', type: 'gasto', name: 'Mensalidade Faculdade', category: 'Educação', value: 450, purchaseDate: '2026-06-01', dueDate: '2026-06-15', paymentMethod: 'Boleto', bank: 'Banco do Brasil', status: 'atrasado', notes: 'Precisa emitir segunda via com juros' },
+        { id: 'tx-j-5', type: 'gasto', name: 'Conta de Energia (Enel)', category: 'Moradia', value: 189.60, purchaseDate: '2026-06-02', dueDate: '2026-06-18', paymentMethod: 'PIX', bank: 'Itaú', status: 'pendente', notes: 'Código de barras recebido por e-mail' },
+        { id: 'tx-j-6', type: 'gasto', name: 'Supermercado Mensal', category: 'Alimentação', value: 945.30, purchaseDate: '2026-06-06', dueDate: '2026-06-25', paymentMethod: 'Cartão de Crédito', bank: 'Nubank', status: 'pago', paymentDate: '2026-06-06', notes: 'Abastecimento da casa para o mês' },
+        { id: 'tx-j-7', type: 'gasto', name: 'Jantar Pizzaria Gourmet', category: 'Lazer', value: 145, purchaseDate: '2026-06-12', dueDate: '2026-06-12', paymentMethod: 'Cartão de Crédito', bank: 'Nubank', status: 'pago', paymentDate: '2026-06-12', notes: 'Comemoração de aniversário' },
+        { id: 'tx-j-8', type: 'gasto', name: 'Combustível Carro', category: 'Transporte', value: 180, purchaseDate: '2026-06-10', dueDate: '2026-06-15', paymentMethod: 'Cartão de Débito', bank: 'Bradesco', status: 'pago', paymentDate: '2026-06-10' },
+        { id: 'tx-j-9', type: 'gasto', name: 'Internet Banda Larga', category: 'Moradia', value: 119.90, purchaseDate: '2026-06-05', dueDate: '2026-06-22', paymentMethod: 'Boleto', bank: 'Nubank', status: 'pendente', notes: 'Débito automático não cadastrado' },
+        { id: 'tx-j-10', type: 'gasto', name: 'Consulta Dentista', category: 'Saúde', value: 250, purchaseDate: '2026-06-15', dueDate: '2026-06-15', paymentMethod: 'PIX', bank: 'Inter', status: 'pago', paymentDate: '2026-06-15', notes: 'Tratamento de canal' },
+        { id: 'tx-j-11', type: 'gasto', name: 'Aparelhos Livros Acadêmicos', category: 'Educação', value: 120, purchaseDate: '2026-06-16', dueDate: '2026-06-30', paymentMethod: 'Cartão de Crédito', bank: 'Santander', status: 'pendente', notes: 'Comprado na Amazon' }
+      ];
+
+
+      // ==========================================
+      // ICON COMPONENT (DYNAMICAL INTEGRATION)
+      // ==========================================
+      function Icon({ name, className = "h-4 w-4" }) {
+        const elRef = useRef(null);
+        useEffect(() => {
+          if (elRef.current && window.lucide) {
+            elRef.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+            window.lucide.createIcons({
+              nameAttr: 'data-lucide',
+              attrs: { class: className },
+              node: elRef.current
+            });
+          }
+        }, [name, className]);
+        return <span ref={elRef} className="inline-flex items-center justify-center shrink-0" />;
+      }
+
+
+      // ==========================================
+      // MAIN APP CONTROLLER
+      // ==========================================
+      function App() {
+        const [activeTab, setActiveTab] = useState('dashboard');
+        const [selectedMonth, setSelectedMonth] = useState('2026-06');
+        const [theme, setTheme] = useState('light');
+
+        const [transactions, setTransactions] = useState([]);
+        const [goals, setGoals] = useState([]);
+        const [budgets, setBudgets] = useState([]);
+        const [accounts, setAccounts] = useState([]);
+        const [activeAccountId, setActiveAccountId] = useState('user-1');
+        const [monthlyEconomyGoal, setMonthlyEconomyGoal] = useState(1200);
+
+        const [isFormOpen, setIsFormOpen] = useState(false);
+        const [editingTransaction, setEditingTransaction] = useState(null);
+
+        // Load Initial State on Boot
+        useEffect(() => {
+          try {
+            const cachedTheme = localStorage.getItem('finances_theme');
+            if (cachedTheme) {
+              setTheme(cachedTheme);
+            } else {
+              const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+              setTheme(prefersDark ? 'dark' : 'light');
+            }
+
+            const cachedTxs = localStorage.getItem('finances_txs');
+            const cachedGoals = localStorage.getItem('finances_goals');
+            const cachedBudgets = localStorage.getItem('finances_budgets');
+            const cachedAccounts = localStorage.getItem('finances_accounts');
+            const cachedActiveAcc = localStorage.getItem('finances_active_acc');
+            const cachedMonthlyGoal = localStorage.getItem('finances_monthly_goal');
+
+            setTransactions(cachedTxs ? JSON.parse(cachedTxs) : defaultTransactions);
+            setGoals(cachedGoals ? JSON.parse(cachedGoals) : defaultGoals);
+            setBudgets(cachedBudgets ? JSON.parse(cachedBudgets) : defaultBudgets);
+            setAccounts(cachedAccounts ? JSON.parse(cachedAccounts) : defaultUsers);
+            setActiveAccountId(cachedActiveAcc || 'user-1');
+            setMonthlyEconomyGoal(cachedMonthlyGoal ? Number(cachedMonthlyGoal) : 1200);
+          } catch (e) {
+            setTransactions(defaultTransactions);
+            setGoals(defaultGoals);
+            setBudgets(defaultBudgets);
+            setAccounts(defaultUsers);
+            setActiveAccountId('user-1');
+          }
+        }, []);
+
+        // Sync State to Local Storage
+        useEffect(() => { if (transactions.length) localStorage.setItem('finances_txs', JSON.stringify(transactions)); }, [transactions]);
+        useEffect(() => { if (goals.length) localStorage.setItem('finances_goals', JSON.stringify(goals)); }, [goals]);
+        useEffect(() => { if (budgets.length) localStorage.setItem('finances_budgets', JSON.stringify(budgets)); }, [budgets]);
+        useEffect(() => { if (accounts.length) localStorage.setItem('finances_accounts', JSON.stringify(accounts)); }, [accounts]);
+        useEffect(() => { if (activeAccountId) localStorage.setItem('finances_active_acc', activeAccountId); }, [activeAccountId]);
+        useEffect(() => { localStorage.setItem('finances_monthly_goal', String(monthlyEconomyGoal)); }, [monthlyEconomyGoal]);
+
+        useEffect(() => {
+          const root = document.documentElement;
+          if (theme === 'dark') {
+            root.classList.add('dark');
+            root.classList.remove('light');
+          } else {
+            root.classList.add('light');
+            root.classList.remove('dark');
+          }
+          localStorage.setItem('finances_theme', theme);
+        }, [theme]);
+
+        const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+
+        const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0] || { name: 'Isabella Cardoso', email: '', avatarColor: 'bg-emerald-500' };
+
+        // Period Filtering Options Generator
+        const monthsList = useMemo(() => {
+          const months = Array.from(new Set(transactions.map(t => t.purchaseDate.substring(0, 7))));
+          months.sort((a, b) => b.localeCompare(a));
+          const monthNames = {
+            '01': 'Janeiro', '02': 'Fevereiro', '03': 'Março', '04': 'Abril', '05': 'Maio', '06': 'Junho',
+            '07': 'Julho', '08': 'Agosto', '09': 'Setembro', '10': 'Outubro', '11': 'Novembro', '12': 'Dezembro'
+          };
+          return months.map(m => {
+            const parts = m.split('-');
+            return { value: m, label: `${monthNames[parts[1]] || 'Mês'} de ${parts[0]}` };
+          });
+        }, [transactions]);
+
+        const filteredTransactions = useMemo(() => {
+          if (selectedMonth === 'all') return transactions;
+          return transactions.filter(t => t.purchaseDate.startsWith(selectedMonth));
+        }, [transactions, selectedMonth]);
+
+        // Transaction Mutation Handles
+        const handleSaveTransaction = (data) => {
+          const today = new Date().toISOString().split('T')[0];
+          if (data.id) {
+            setTransactions(prev => prev.map(t => t.id === data.id ? {
+              ...t,
+              ...data,
+              paymentDate: data.status === 'pago' ? (data.paymentDate || today) : undefined,
+              paidMethod: data.status === 'pago' ? (data.paidMethod || data.paymentMethod) : undefined,
+              paidBank: data.status === 'pago' ? (data.paidBank || data.bank) : undefined,
+            } : t));
+          } else {
+            const newTx = {
+              id: `tx-${Date.now()}`,
+              ...data,
+              purchaseDate: data.purchaseDate || today,
+              dueDate: data.dueDate || today,
+              paymentDate: data.status === 'pago' ? today : undefined,
+              paidMethod: data.status === 'pago' ? data.paymentMethod : undefined,
+              paidBank: data.status === 'pago' ? data.bank : undefined,
+            };
+            setTransactions(prev => [newTx, ...prev]);
+          }
+          setIsFormOpen(false);
+          setEditingTransaction(null);
+        };
+
+        const handleDeleteTransaction = (id) => {
+          setTransactions(prev => prev.filter(t => t.id !== id));
+        };
+
+        const handleQuickPay = (id) => {
+          const today = new Date().toISOString().split('T')[0];
+          setTransactions(prev => prev.map(t => t.id === id ? {
+            ...t,
+            status: 'pago',
+            paymentDate: today,
+            paidMethod: t.paymentMethod,
+            paidBank: t.bank
+          } : t));
+        };
+
+        const handleAddGoal = (goal) => {
+          setGoals(prev => [...prev, { id: `goal-${Date.now()}`, ...goal }]);
+        };
+
+        const handleDeleteGoal = (id) => {
+          setGoals(prev => prev.filter(g => g.id !== id));
+        };
+
+        const handleModifyGoalProgress = (id, amt) => {
+          setGoals(prev => prev.map(g => g.id === id ? { ...g, currentValue: Math.max(0, g.currentValue + amt) } : g));
+        };
+
+        const handleAddNewAccount = (name, email) => {
+          const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-violet-500', 'bg-rose-500', 'bg-amber-500', 'bg-sky-500'];
+          const avatarColor = colors[Math.floor(Math.random() * colors.length)];
+          setAccounts(prev => [...prev, { id: `user-${Date.now()}`, name, email, avatarColor }]);
+        };
+
+        const handleResetDatabase = () => {
+          if (confirm('Aviso: Isso apagará permanentemente todos os registros, metas, limites de orçamento e resetará a base. Deseja continuar?')) {
+            localStorage.clear();
+            setTransactions(defaultTransactions);
+            setGoals(defaultGoals);
+            setBudgets(defaultBudgets);
+            setAccounts(defaultUsers);
+            setActiveAccountId('user-1');
+            setMonthlyEconomyGoal(1200);
+            setSelectedMonth('2026-06');
+            setActiveTab('dashboard');
+          }
+        };
+
+        const handleExportBackup = () => {
+          const backupState = { transactions, goals, budgets, monthlyEconomyGoal };
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupState, null, 2));
+          const dlAnchorElem = document.createElement('a');
+          dlAnchorElem.setAttribute("href", dataStr);
+          dlAnchorElem.setAttribute("download", `FinTrack_Pro_Backup_${new Date().toISOString().split('T')[0]}.json`);
+          dlAnchorElem.click();
+        };
+
+        const handleImportBackup = (importedState) => {
+          try {
+            if (importedState.transactions) setTransactions(importedState.transactions);
+            if (importedState.goals) setGoals(importedState.goals);
+            if (importedState.budgets) setBudgets(importedState.budgets);
+            if (importedState.monthlyEconomyGoal) setMonthlyEconomyGoal(importedState.monthlyEconomyGoal);
+            return null;
+          } catch (err) {
+            return "Falha ao analisar a estrutura do arquivo de backup.";
+          }
+        };
+
+        // Budget analysis alerts
+        const activeMonthGastos = filteredTransactions.filter(t => t.type === 'gasto');
+        const overdueTxs = transactions.filter(t => t.type === 'gasto' && t.status === 'atrasado');
+        const upcomingTxs = transactions.filter(t => t.type === 'gasto' && t.status === 'pendente');
+
+        const categorySpent = {};
+        activeMonthGastos.forEach(g => {
+          categorySpent[g.category] = (categorySpent[g.category] || 0) + g.value;
+        });
+
+        const exceededAlerts = [];
+        budgets.forEach(b => {
+          const spent = categorySpent[b.category] || 0;
+          if (spent > b.limitValue) {
+            exceededAlerts.push(`Categoria "${b.category}" estourou limite em R$ ${(spent - b.limitValue).toFixed(2)}`);
+          }
+        });
+
+        return (
+          <div className="flex flex-col min-h-screen">
+            {/* Header Area */}
+            <Header
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              onSelectAccount={setActiveAccountId}
+              selectedMonth={selectedMonth}
+              monthsList={monthsList}
+              onMonthChange={setSelectedMonth}
+              theme={theme}
+              toggleTheme={toggleTheme}
+              overdueCount={overdueTxs.length}
+              upcomingCount={upcomingTxs.length}
+              isBudgetExceeded={exceededAlerts.length > 0}
+              budgetAlerts={exceededAlerts}
+              overdueTransactions={overdueTxs}
+              upcomingTransactions={upcomingTxs}
+              onMarkAsPaid={handleQuickPay}
+            />
+
+            {/* Layout Wrapper */}
+            <div className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 flex flex-col md:flex-row gap-6">
+              
+              {/* Sidebar Rail (hidden during printing) */}
+              <aside className="w-full md:w-60 shrink-0 flex md:flex-col gap-1.5 no-print">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3.5 py-3 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="layout-dashboard" className="h-4.5 w-4.5" />
+                  <span className="hidden md:inline">Painel Geral</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('transactions')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3.5 py-3 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'transactions' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="arrow-right-left" className="h-4.5 w-4.5" />
+                  <span className="hidden md:inline">Lançamentos</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('goals')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3.5 py-3 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'goals' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="target" className="h-4.5 w-4.5" />
+                  <span className="hidden md:inline">Objetivos</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3.5 py-3 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'reports' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="area-chart" className="h-4.5 w-4.5" />
+                  <span className="hidden md:inline">Relatórios</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`flex-1 md:flex-initial flex items-center justify-center md:justify-start space-x-3 px-3.5 py-3 rounded-xl text-left transition-colors cursor-pointer text-xs ${activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50'}`}
+                >
+                  <Icon name="settings" className="h-4.5 w-4.5" />
+                  <span className="hidden md:inline">Configurações</span>
+                </button>
+
+                <div className="hidden md:block pt-4 border-t border-slate-200 dark:border-slate-850 mt-3">
+                  <button
+                    onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/15 cursor-pointer animate-press"
+                  >
+                    <Icon name="plus" className="h-4 w-4" />
+                    <span>Lançar Fluxo</span>
+                  </button>
+                </div>
+              </aside>
+
+              {/* View Container Space */}
+              <main className="flex-1 min-w-0">
+                {/* Global warning message line */}
+                {overdueTxs.length > 0 && activeTab === 'dashboard' && (
+                  <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 p-4 text-xs text-rose-800 dark:border-rose-950/30 dark:bg-rose-950/10 dark:text-rose-400 flex items-center gap-3 no-print">
+                    <Icon name="alert-triangle" className="h-5 w-5 text-rose-500 shrink-0" />
+                    <div>
+                      <span className="font-bold">Atenção Crítica: </span>Você possui <span className="underline font-bold">{overdueTxs.length} lançamento(s) atrasados</span> pendentes de pagamento. Efetue a quitação rápida abaixo para evitar juros.
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'dashboard' && (
+                  <DashboardView
+                    txs={filteredTransactions}
+                    budgets={budgets}
+                    onOpenForm={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                    onMarkPaid={handleQuickPay}
+                    onNavigateTxs={() => setActiveTab('transactions')}
+                    exceededCount={exceededAlerts.length}
+                    categorySpent={categorySpent}
+                    overdueTxs={overdueTxs}
+                  />
+                )}
+
+                {activeTab === 'transactions' && (
+                  <TransactionListView
+                    txs={filteredTransactions}
+                    onEdit={(t) => { setEditingTransaction(t); setIsFormOpen(true); }}
+                    onDelete={handleDeleteTransaction}
+                    onMarkPaid={handleQuickPay}
+                    onAddNew={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                  />
+                )}
+
+                {activeTab === 'goals' && (
+                  <GoalsView
+                    txs={filteredTransactions}
+                    goals={goals}
+                    onAddGoal={handleAddGoal}
+                    onDeleteGoal={handleDeleteGoal}
+                    onModifyProgress={handleModifyGoalProgress}
+                    monthlyGoal={monthlyEconomyGoal}
+                    setMonthlyGoal={setMonthlyEconomyGoal}
+                  />
+                )}
+
+                {activeTab === 'reports' && (
+                  <ReportsView
+                    transactions={transactions}
+                  />
+                )}
+
+                {activeTab === 'settings' && (
+                  <SettingsView
+                    theme={theme}
+                    onToggleTheme={toggleTheme}
+                    accounts={accounts}
+                    activeAccountId={activeAccountId}
+                    onSelectAccount={setActiveAccountId}
+                    onAddAccount={handleAddNewAccount}
+                    onReset={handleResetDatabase}
+                    onExportBackup={handleExportBackup}
+                    onImportBackup={handleImportBackup}
+                  />
+                )}
+              </main>
+
+            </div>
+
+            {/* Quick Floating Action Button for mobile devices (hidden in desktop & print) */}
+            <div className="fixed bottom-5 right-5 z-40 md:hidden no-print">
+              <button
+                onClick={() => { setEditingTransaction(null); setIsFormOpen(true); }}
+                className="bg-indigo-650 text-white p-4 rounded-full shadow-lg h-12 w-12 flex items-center justify-center animate-press hover:bg-indigo-750"
+              >
+                <Icon name="plus" className="h-5.5 w-5.5" />
+              </button>
+            </div>
+
+            {/* Transaction Form Layer Popup Modal */}
+            {isFormOpen && (
+              <TransactionFormView
+                transaction={editingTransaction}
+                onSave={handleSaveTransaction}
+                onClose={() => { setIsFormOpen(false); setEditingTransaction(null); }}
+              />
+            )}
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // HEADER & PROFILE CONTAINER
+      // ==========================================
+      function Header({
+        accounts,
+        activeAccountId,
+        onSelectAccount,
+        selectedMonth,
+        monthsList,
+        onMonthChange,
+        theme,
+        toggleTheme,
+        overdueCount,
+        upcomingCount,
+        isBudgetExceeded,
+        budgetAlerts,
+        overdueTransactions,
+        upcomingTransactions,
+        onMarkAsPaid
+      }) {
+        const [showUserDropdown, setShowUserDropdown] = useState(false);
+        const [showBellDropdown, setShowBellDropdown] = useState(false);
+
+        const currentYearStr = "2026";
+        const activeAccount = accounts.find(a => a.id === activeAccountId) || accounts[0] || { name: 'Isabella Cardoso', email: '', avatarColor: 'bg-emerald-500' };
+
+        return (
+          <header className="sticky top-0 z-45 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 transition-colors duration-300 no-print">
+            <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
+              
+              {/* Logo block */}
+              <div className="flex items-center space-x-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-650 text-white shadow-md shadow-indigo-600/20">
+                  <span className="font-display text-xl font-bold">F</span>
+                </div>
+                <div>
+                  <h1 className="font-display text-base font-bold tracking-tight text-slate-900 dark:text-white leading-tight">FinTrack Pro</h1>
+                  <span className="font-mono text-[9px] text-slate-400 uppercase tracking-widest leading-none">Fluxo Inteligente</span>
+                </div>
+              </div>
+
+              {/* Navigation Center Selection */}
+              <div className="hidden md:flex items-center space-x-2">
+                <Icon name="calendar" className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-[10px] font-bold text-slate-450 uppercase tracking-wide">Período:</span>
+                <div className="relative">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => onMonthChange(e.target.value)}
+                    className="appearance-none font-sans text-xs font-semibold bg-slate-100 hover:bg-slate-150 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 pl-2.5 pr-7 py-1.5 rounded-lg border-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="all">Histórico Geral</option>
+                    {monthsList.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Utility Tools */}
+              <div className="flex items-center space-x-3.5">
+                
+                {/* Mobile version simple month tagger */}
+                <div className="md:hidden">
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => onMonthChange(e.target.value)}
+                    className="font-sans text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-2 py-1 rounded-lg border-none"
+                  >
+                    <option value="all">Filtro Geral</option>
+                    {monthsList.map(m => (
+                      <option key={m.value} value={m.value}>{m.value.split('-')[1]}/{m.value.split('-')[0].slice(-2)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dark Mode toggle */}
+                <button
+                  onClick={toggleTheme}
+                  className="p-1.5 rounded-lg text-slate-450 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-white transition-all cursor-pointer"
+                  title="Alternar Tema"
+                >
+                  {theme === 'light' ? <Icon name="moon" className="h-5 w-5" /> : <Icon name="sun" className="h-5 w-5" />}
+                </button>
+
+                {/* Notification Bell with Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => { setShowBellDropdown(!showBellDropdown); setShowUserDropdown(false); }}
+                    className="p-1.5 rounded-lg text-slate-450 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-white transition-all relative cursor-pointer"
+                  >
+                    <Icon name="bell" className="h-5 w-5" />
+                    {(overdueCount > 0 || upcomingCount > 0 || isBudgetExceeded) && (
+                      <span className="absolute top-1 right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                      </span>
+                    )}
+                  </button>
+
+                  {showBellDropdown && (
+                    <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl py-3.5 z-50 text-slate-800 dark:text-slate-100">
+                      <div className="px-4 pb-2 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                        <span className="font-display font-bold text-xs uppercase tracking-wider">Alertas Importantes</span>
+                        <span className="font-mono text-[9px] bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400 px-2 py-0.5 rounded">
+                          {overdueCount + upcomingCount + (isBudgetExceeded ? 1 : 0)} atritos
+                        </span>
+                      </div>
+
+                      <div className="max-h-64 overflow-y-auto pt-2">
+                        {/* Exceeded Budges Notification */}
+                        {isBudgetExceeded && (
+                          <div className="px-4 py-2 bg-rose-50/70 dark:bg-rose-950/20 border-b border-rose-100/30 dark:border-rose-900/10 flex gap-2.5">
+                            <Icon name="alert-triangle" className="h-4.5 w-4.5 text-rose-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-bold text-rose-800 dark:text-rose-450">Saldo Alocado Estourado!</p>
+                              {budgetAlerts.map((msg, i) => <p key={i} className="text-[10px] text-rose-700 dark:text-rose-400 mt-0.5">{msg}</p>)}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Overdues */}
+                        {overdueTransactions.length > 0 && (
+                          <div className="border-b border-slate-100 dark:border-slate-850">
+                            <div className="px-4 py-1 text-[9px] font-mono tracking-wider text-rose-500 uppercase bg-rose-50/20 dark:bg-rose-950/5">Atrasadas e Pendentes ({overdueCount})</div>
+                            {overdueTransactions.map(t => (
+                              <div key={t.id} className="px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/20 flex justify-between items-center text-xs">
+                                <div>
+                                  <p className="font-medium">{t.name}</p>
+                                  <p className="text-[10px] text-slate-400">Venceu {t.dueDate} • <b className="text-rose-500">R$ {t.value.toFixed(2)}</b></p>
+                                </div>
+                                <button onClick={() => onMarkAsPaid(t.id)} className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold px-2 py-0.5 rounded text-[10px] leading-tight">Pagar</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Status Upcoming */}
+                        {upcomingTransactions.length > 0 && (
+                          <div>
+                            <div className="px-4 py-1 text-[9px] font-mono tracking-wider text-amber-500 uppercase bg-amber-50/20 dark:bg-amber-950/5">Vencendo Breve ({upcomingCount})</div>
+                            {upcomingTransactions.map(t => (
+                              <div key={t.id} className="px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/20 flex justify-between items-center text-xs">
+                                <div>
+                                  <p className="font-medium">{t.name}</p>
+                                  <p className="text-[10px] text-slate-400">Vence {t.dueDate} • R$ {t.value.toFixed(2)}</p>
+                                </div>
+                                <button onClick={() => onMarkAsPaid(t.id)} className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold px-2 py-0.5 rounded text-[10px] leading-tight">Pagar</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {overdueCount === 0 && upcomingCount === 0 && !isBudgetExceeded && (
+                          <p className="p-6 text-center text-xs text-slate-400 dark:text-slate-500">Nenhum aviso ou atraso contábil registrado.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Profile selector dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => { setShowUserDropdown(!showUserDropdown); setShowBellDropdown(false); }}
+                    className="flex items-center space-x-2.5 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                  >
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-xs ${activeAccount.avatarColor}`}>
+                      {activeAccount.name[0]}
+                    </div>
+                    <div className="hidden lg:block">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-150 leading-tight truncate max-w-[120px]">{activeAccount.name}</p>
+                      <p className="text-[9px] text-slate-400 font-mono leading-none">Perfil Ativo</p>
+                    </div>
+                  </button>
+
+                  {showUserDropdown && (
+                    <div className="absolute right-0 mt-3 w-60 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl py-2 z-50">
+                      <div className="px-4 py-2 border-b dark:border-slate-850">
+                        <p className="text-xs font-bold leading-tight truncate">{activeAccount.name}</p>
+                        <p className="text-[9px] text-slate-400 font-mono truncate">{activeAccount.email}</p>
+                      </div>
+                      <div className="p-1 px-4 text-[9px] font-mono uppercase text-slate-400 tracking-wider mt-1.5">Mudar Perfil</div>
+                      <div className="max-h-40 overflow-y-auto px-1.5 space-y-0.5">
+                        {accounts.map(acc => (
+                          <button
+                            key={acc.id}
+                            onClick={() => { onSelectAccount(acc.id); setShowUserDropdown(false); }}
+                            className={`w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-lg text-left text-xs ${acc.id === activeAccountId ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 font-bold' : 'text-slate-650 hover:bg-slate-50 dark:hover:bg-slate-800/10'}`}
+                          >
+                            <span className={`h-6 w-6 rounded flex items-center justify-center font-bold text-white text-[10px] ${acc.avatarColor}`}>{acc.name[0]}</span>
+                            <span className="truncate">{acc.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+            </div>
+          </header>
+        );
+      }
+
+
+      // ==========================================
+      // DASHBOARD VIEW
+      // ==========================================
+      function DashboardView({ txs, budgets, onOpenForm, onMarkPaid, onNavigateTxs, exceededCount, categorySpent, overdueTxs }) {
+        const stats = useMemo(() => {
+          let rec = 0, gas = 0;
+          txs.forEach(t => {
+            if (t.type === 'receita') rec += t.value;
+            else if (t.type === 'gasto') gas += t.value;
+          });
+          return { receita: rec, gasto: gas, saldo: rec - gas };
+        }, [txs]);
+
+        const recentTxs = useMemo(() => [...txs].slice(0, 5), [txs]);
+
+        const limitsData = useMemo(() => {
+          return budgets.map(b => {
+            const spent = categorySpent[b.category] || 0;
+            const pct = b.limitValue > 0 ? (spent / b.limitValue) * 100 : 0;
+            return { category: b.category, limit: b.limitValue, spent, pct };
+          });
+        }, [budgets, categorySpent]);
+
+        return (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs relative overflow-hidden">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Saldo Líquido</span>
+                <h3 className="text-2xl font-bold tracking-tight">R$ {stats.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                <div className={`absolute bottom-0 left-0 right-0 h-1 ${stats.saldo >= 0 ? 'bg-indigo-500' : 'bg-rose-500'}`}></div>
+              </div>
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Total Receitas (+)</span>
+                <h3 className="text-2xl font-bold tracking-tight text-emerald-600">R$ {stats.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs">
+                <span className="font-mono text-[9px] font-bold uppercase text-slate-400 block mb-1">Total Gastos (-)</span>
+                <h3 className="text-2xl font-bold tracking-tight text-rose-650">R$ {stats.gasto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              </div>
+            </div>
+
+            {/* Main Content Panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Recent ledger transactions */}
+              <div className="lg:col-span-2 rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 dark:border-slate-850">
+                  <h4 className="font-display font-bold text-sm">Controle Recente do Fluxo</h4>
+                  <button onClick={onNavigateTxs} className="text-[10px] text-indigo-600 font-bold hover:underline">Ver Todos</button>
+                </div>
+
+                {recentTxs.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-10">Sem transações no período selecionado.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60 font-sans text-xs">
+                    {recentTxs.map(t => (
+                      <div key={t.id} className="py-3 flex justify-between items-center group">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <span className={`h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold leading-none ${t.type === 'receita' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/20'}`}>
+                            {t.type === 'receita' ? '+' : '-'}
+                          </span>
+                          <div className="truncate">
+                            <span className="font-semibold block truncate text-slate-800 dark:text-slate-150">{t.name}</span>
+                            <span className="text-[9px] text-slate-400 block font-mono">{t.category} • Vencimento: {t.dueDate}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 pl-2">
+                          <span className={`font-mono font-bold block ${t.type === 'receita' ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-150'}`}>R$ {t.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          <span className={`text-[8px] uppercase tracking-wider font-bold inline-block px-1 rounded-sm ${t.status === 'pago' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : t.status === 'atrasado' ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-500'}`}>
+                            {t.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Categorized Budgets Progression Limits */}
+              <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-4">
+                <div className="border-b pb-2 dark:border-slate-850 flex justify-between items-center">
+                  <h4 className="font-display font-medium text-sm">Limites de Verbas</h4>
+                  <span className="font-mono text-[8px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/10 px-2 py-0.5 rounded uppercase">Mensal</span>
+                </div>
+
+                <div className="space-y-4 pt-1">
+                  {limitsData.map(c => {
+                    const over = c.spent > c.limit;
+                    return (
+                      <div key={c.category} className="space-y-1">
+                        <div className="flex justify-between items-end text-xs font-medium">
+                          <span className="text-slate-700 dark:text-slate-350">{c.category}</span>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            R$ {c.spent.toFixed(0)} / <span className="text-slate-650 dark:text-slate-300">R$ {c.limit}</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-300 ${over ? 'bg-rose-500' : 'bg-indigo-500'}`} 
+                            style={{ width: `${Math.min(100, c.pct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // TRANSACTION LIST DETAILED VIEW
+      // ==========================================
+      function TransactionListView({ txs, onEdit, onDelete, onMarkPaid, onAddNew }) {
+        const [search, setSearch] = useState('');
+        const [typeFilter, setTypeFilter] = useState('all');
+
+        const filteredListing = useMemo(() => {
+          return txs.filter(t => {
+            const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase()) || t.category.toLowerCase().includes(search.toLowerCase());
+            const matchesType = typeFilter === 'all' || t.type === typeFilter;
+            return matchesSearch && matchesType;
+          });
+        }, [txs, search, typeFilter]);
+
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <h3 className="font-display font-bold text-sm">Análise e Detalhamento das Contas</h3>
+              <button 
+                onClick={onAddNew} 
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer animate-press shadow-xs shadow-indigo-600/10"
+              >
+                <Icon name="plus" className="h-4 w-4" /> Adicionar Transação
+              </button>
+            </div>
+
+            {/* Filter and query rows */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2 relative">
+                <input
+                  type="text"
+                  placeholder="Pesquisar por nome ou categoria de conta..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full text-xs p-2.5 pl-3 rounded-xl border border-slate-150 bg-white dark:bg-slate-900 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="text-xs p-2.5 rounded-xl border border-slate-150 bg-white dark:bg-slate-900 dark:border-slate-800 focus:outline-none"
+              >
+                <option value="all">Tipo (Todos os fluxos)</option>
+                <option value="receita">Receitas / Ganhos (+)</option>
+                <option value="gasto">Saídas / Despesas (-)</option>
+              </select>
+            </div>
+
+            {/* Table layout containing rows */}
+            <div className="rounded-2xl border border-slate-150 bg-white dark:bg-slate-900 overflow-hidden dark:border-slate-800 shadow-xs">
+              {filteredListing.length === 0 ? (
+                <div className="py-14 text-center text-slate-400">
+                  <p className="text-xs">Não existem contracheques ou faturas registradas correspondentes à filtragem.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto text-xs">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-850 border-b border-slate-150 dark:border-slate-800 text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                      <tr>
+                        <th className="p-3.5">Identidade da Fatura</th>
+                        <th className="p-3.5">Previsão Vencimento</th>
+                        <th className="p-3.5">Estado</th>
+                        <th className="p-3.5 text-right">Valor Líquido</th>
+                        <th className="p-3.5 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {filteredListing.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                          <td className="p-3.5">
+                            <span className="font-semibold block text-slate-800 dark:text-slate-150 leading-tight">{t.name}</span>
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium font-mono block mt-0.5">{t.category}</span>
+                          </td>
+                          <td className="p-3.5 font-mono text-slate-450">{t.dueDate}</td>
+                          <td className="p-3.5">
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${t.status === 'pago' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20' : t.status === 'atrasado' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right font-mono font-bold">
+                            <span className={t.type === 'receita' ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-150'}>
+                              R$ {t.value.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="flex justify-center items-center gap-2">
+                              {t.status !== 'pago' && (
+                                <button 
+                                  onClick={() => onMarkPaid(t.id)} 
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded px-2.5 py-1 font-bold text-[10px] animate-press"
+                                >
+                                  Pagar
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => onEdit(t)} 
+                                className="text-slate-450 hover:text-indigo-650 transition cursor-pointer"
+                                title="Editar"
+                              >
+                                ✏️
+                              </button>
+                              <button 
+                                onClick={() => { if(confirm('Estornar ou excluir esse lançamento?')) onDelete(t.id); }} 
+                                className="text-rose-500 hover:text-rose-600 transition cursor-pointer"
+                                title="Excluir"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // GOALS / PLANNING VIEW
+      // ==========================================
+      function GoalsView({ txs, goals, onAddGoal, onDeleteGoal, onModifyProgress, monthlyGoal, setMonthlyGoal }) {
+        const [showAddGoalForm, setShowAddGoalForm] = useState(false);
+        const [goalName, setGoalName] = useState('');
+        const [goalTarget, setGoalTarget] = useState('');
+
+        const handleGoalSubmit = (e) => {
+          e.preventDefault();
+          if (!goalName || !goalTarget) return;
+          onAddGoal({
+            name: goalName,
+            targetValue: Number(goalTarget),
+            currentValue: 0,
+            deadline: '2026-12-31'
+          });
+          setGoalName('');
+          setGoalTarget('');
+          setShowAddGoalForm(false);
+        };
+
+        const periodBalance = useMemo(() => {
+          let rec = 0, gas = 0;
+          txs.forEach(t => {
+            if (t.type === 'receita') rec += t.value;
+            else if (t.type === 'gasto') gas += t.value;
+          });
+          return rec - gas;
+        }, [txs]);
+
+        return (
+          <div className="space-y-6">
+            {/* Surplus/Economics target banner */}
+            <div className="bg-gradient-to-tr from-indigo-800 to-indigo-600 rounded-2xl p-5 text-white shadow-sm">
+              <h4 className="font-display font-semibold text-lg tracking-tight">Sobras de Poupança de Período</h4>
+              <p className="text-xs text-indigo-100/90 leading-relaxed mt-1">Estipule o volume desejável que você anseia reter de superávit contábil no respectivo período de faturas ativas.</p>
+              
+              <div className="flex items-center space-x-3 mt-4">
+                <span className="text-xs font-semibold text-indigo-200">Sua Meta Esperada (R$):</span>
+                <input
+                  type="number"
+                  value={monthlyGoal || ''}
+                  onChange={(e) => setMonthlyGoal(e.target.value === '' ? 0 : Number(e.target.value))}
+                  className="bg-white/10 hover:bg-white/15 focus:bg-white text-white focus:text-slate-900 border-none rounded-lg px-2.5 py-1.5 text-xs font-bold w-32 focus:ring-2 focus:ring-white transition"
+                />
+              </div>
+
+              <div className="mt-5 pt-3.5 border-t border-white/20 flex text-[11px] font-mono justify-between text-indigo-100">
+                <span>Saldo Realizado no Período: <b>R$ {periodBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</b></span>
+                <span>{periodBalance >= monthlyGoal ? 'Superávit Batido! 🎉' : 'Meta sob Esforço ⏳'}</span>
+              </div>
+            </div>
+
+            {/* Target Integrated saving lists */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="font-display font-medium text-sm text-slate-800 dark:text-slate-100">Objetivos e Cofres Integrados</h4>
+                <button 
+                  onClick={() => setShowAddGoalForm(!showAddGoalForm)} 
+                  className="text-xs font-bold text-indigo-650 hover:underline flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="plus" className="h-4.5 w-4.5" /> Estipular Novo Alvo
+                </button>
+              </div>
+
+              {showAddGoalForm && (
+                <form onSubmit={handleGoalSubmit} className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 max-w-sm space-y-3.5">
+                  <h5 className="text-xs font-bold">Novo Cofrinho de Metas</h5>
+                  <div>
+                    <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Descrição do Objetivo</label>
+                    <input 
+                      type="text" 
+                      placeholder="Ex: Reserva Emergencial" 
+                      value={goalName} 
+                      onChange={(e) => setGoalName(e.target.value)} 
+                      required 
+                      className="w-full text-xs p-2 rounded-lg border bg-slate-50 dark:bg-slate-850 dark:border-slate-800" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-mono text-slate-400 block mb-0.5">Dinheiro Alvo Desejado (R$)</label>
+                    <input 
+                      type="number" 
+                      placeholder="Ex: 10000" 
+                      value={goalTarget} 
+                      onChange={(e) => setGoalTarget(e.target.value)} 
+                      required 
+                      className="w-full text-xs p-2 rounded-lg border bg-slate-50 dark:bg-slate-850 dark:border-slate-800" 
+                    />
+                  </div>
+                  <button type="submit" className="w-full text-xs font-bold bg-indigo-600 text-white py-2 rounded-lg leading-none cursor-pointer animate-press">Salvar Alvo</button>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {goals.map(g => {
+                  const percent = Math.min(100, (g.currentValue / g.targetValue) * 100);
+                  return (
+                    <div key={g.id} className="rounded-2xl border border-slate-150 bg-white p-4 dark:bg-slate-900 dark:border-slate-800 space-y-3 relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h5 className="font-semibold text-xs leading-none text-slate-800 dark:text-slate-150">{g.name}</h5>
+                          <span className="text-[9px] text-slate-400 font-mono mt-1.5 block">Alvo Total: R$ {g.targetValue.toLocaleString('pt-BR')}</span>
+                        </div>
+                        <button onClick={() => { if(confirm('Remover esse cofrinho?')) onDeleteGoal(g.id); }} className="text-rose-500 text-[10px] hover:underline">Excluir</button>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[10px] font-semibold text-slate-450">
+                          <span>Acumulado: R$ {g.currentValue.toLocaleString('pt-BR')}</span>
+                          <span>{percent.toFixed(0)}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-1.5 text-[10px]">
+                        <button onClick={() => onModifyProgress(g.id, 100)} className="bg-slate-50 border p-1 rounded-lg font-semibold text-slate-700 dark:text-slate-350 dark:bg-slate-800 cursor-pointer animate-press shrink-0">+ R$ 100</button>
+                        <button onClick={() => onModifyProgress(g.id, 500)} className="bg-slate-50 border p-1 rounded-lg font-semibold text-slate-700 dark:text-slate-350 dark:bg-slate-800 cursor-pointer animate-press shrink-0">+ R$ 500</button>
+                        <button onClick={() => onModifyProgress(g.id, 1000)} className="bg-slate-50 border p-1 rounded-lg font-semibold text-slate-700 dark:text-slate-350 dark:bg-slate-800 cursor-pointer animate-press shrink-0">+ R$ 1k</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // ADVANCD REPORTS / EXPORTER VIEW
+      // ==========================================
+      function ReportsView({ transactions }) {
+        const [activeSubTab, setActiveSubTab] = useState('category');
+
+        const despesasList = useMemo(() => transactions.filter(t => t.type === 'gasto'), [transactions]);
+        const totalExpensesValue = useMemo(() => despesasList.reduce((sum, t) => sum + t.value, 0), [despesasList]);
+
+        const computedStats = useMemo(() => {
+          const cat = {};
+          const method = {};
+          const bank = {};
+
+          despesasList.forEach(tx => {
+            // Category
+            if (!cat[tx.category]) cat[tx.category] = { value: 0, count: 0 };
+            cat[tx.category].value += tx.value;
+            cat[tx.category].count += 1;
+
+            // Payment method
+            const m = tx.status === 'pago' && tx.paidMethod ? tx.paidMethod : tx.paymentMethod;
+            if (!method[m]) method[m] = { value: 0, count: 0 };
+            method[m].value += tx.value;
+            method[m].count += 1;
+
+            // Bank
+            const b = tx.status === 'pago' && tx.paidBank ? tx.paidBank : tx.bank;
+            if (!bank[b]) bank[b] = { value: 0, count: 0 };
+            bank[b].value += tx.value;
+            bank[b].count += 1;
+          });
+
+          const mapSorting = (groupObj) => {
+            return Object.entries(groupObj)
+              .map(([name, stat]) => ({
+                name,
+                value: stat.value,
+                count: stat.count,
+                pct: totalExpensesValue > 0 ? (stat.value / totalExpensesValue) * 100 : 0
+              }))
+              .sort((a,b) => b.value - a.value);
+          };
+
+          return {
+            category: mapSorting(cat),
+            method: mapSorting(method),
+            bank: mapSorting(bank)
+          };
+        }, [despesasList, totalExpensesValue]);
+
+        const csvExportFunc = () => {
+          const csvHeader = ['ID', 'Tipo', 'Descritivo', 'Categoria', 'Valor (R$)', 'Emissao', 'Vencimento', 'Estado', 'Forma Pagamento', 'Instituicao', 'Anotacoes'].join(';');
+          const lines = [csvHeader];
+          transactions.forEach(t => {
+            lines.push([
+              t.id,
+              t.type === 'receita' ? 'Receita' : 'Depesa',
+              t.name,
+              t.category,
+              t.value.toFixed(2),
+              t.purchaseDate,
+              t.dueDate,
+              t.status.toUpperCase(),
+              t.status === 'pago' && t.paidMethod ? t.paidMethod : t.paymentMethod,
+              t.status === 'pago' && t.paidBank ? t.paidBank : t.bank,
+              t.notes || ''
+            ].join(';'));
+          });
+
+          const blob = new Blob(["\uFEFF" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+          const csvUrl = URL.createObjectURL(blob);
+          const anchorEl = document.createElement("a");
+          anchorEl.href = csvUrl;
+          anchorEl.setAttribute("download", `Planilha_Financeira_${new Date().toISOString().split('T')[0]}.csv`);
+          anchorEl.click();
+        };
+
+        const listToDisplay = computedStats[activeSubTab] || [];
+
+        return (
+          <div className="space-y-6">
+            
+            {/* Download/Print Action Ribbon */}
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center p-4 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl gap-4 shadow-xs">
+              <div>
+                <h3 className="font-display font-bold text-sm">Exportação Fiscal de Relatórios</h3>
+                <p className="text-[10px] text-slate-400">Gere cópias fáceis das suas transações em formato plano para o Excel ou PDF.</p>
+              </div>
+
+              <div className="flex gap-2 shrink-0">
+                <button
+                  onClick={csvExportFunc}
+                  className="flex-1 sm:flex-initial text-xs font-semibold px-4 py-2 border border-slate-200 text-slate-650 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-350 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer animate-press"
+                >
+                  <Icon name="file-spreadsheet" className="h-4.5 w-4.5 text-emerald-500" />
+                  <span>Baixar CSV</span>
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 sm:flex-initial text-xs font-semibold px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer animate-press"
+                >
+                  <Icon name="printer" className="h-4 w-4" />
+                  <span>Imprimir PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Main Graphs Panel */}
+            <div className="rounded-2xl border border-slate-150 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 shadow-xs">
+              {/* Tab Header Controls */}
+              <div className="flex border-b border-slate-100 dark:border-slate-800 pb-3 mb-5 overflow-x-auto gap-2">
+                <button
+                  onClick={() => setActiveSubTab('category')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${activeSubTab === 'category' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-650'}`}
+                >
+                  <Icon name="layers" className="h-4 w-4" />
+                  <span>Por Categoria</span>
+                </button>
+                <button
+                  onClick={() => setActiveSubTab('method')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${activeSubTab === 'method' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-650'}`}
+                >
+                  <Icon name="credit-card" className="h-4 w-4" />
+                  <span>Por Forma de Pagto</span>
+                </button>
+                <button
+                  onClick={() => setActiveSubTab('bank')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${activeSubTab === 'bank' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400' : 'text-slate-400 hover:text-slate-650'}`}
+                >
+                  <Icon name="building" className="h-4 w-4" />
+                  <span>Por Banco</span>
+                </button>
+              </div>
+
+              {totalExpensesValue > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  
+                  {/* Categorized detailed progress items */}
+                  <div className="space-y-4">
+                    <span className="block text-[10px] font-mono font-bold uppercase text-slate-405">Detalhamento dos Lançamentos</span>
+                    <div className="space-y-3.5">
+                      {listToDisplay.map(item => (
+                        <div key={item.name} className="space-y-1">
+                          <div className="flex justify-between text-xs font-medium">
+                            <span className="text-slate-700 dark:text-slate-300">{item.name} <span className="text-[10px] text-slate-400">({item.count} un)</span></span>
+                            <span className="font-mono text-slate-900 dark:text-white font-bold">R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div className="bg-indigo-650 h-full rounded-full" style={{ width: `${item.pct}%` }} />
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-mono block">Representa {item.pct.toFixed(1)}% do deficit total</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* SVG Bar Chart Visualization */}
+                  <div className="flex flex-col items-center justify-center p-5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-150 dark:border-slate-800/60 shadow-inner">
+                    <span className="text-[10px] font-mono font-bold uppercase text-slate-400 mb-6">Mapeamento Vetorial Gráfico (Top 5)</span>
+                    
+                    <div className="w-full max-w-[280px] h-36 flex items-end justify-around pt-2">
+                      {listToDisplay.slice(0, 5).map((item, idx) => {
+                        const maxVal = Math.max(...listToDisplay.map(i => i.value), 1);
+                        const visualPct = (item.value / maxVal) * 100;
+                        return (
+                          <div key={idx} className="flex flex-col items-center justify-end h-full group w-12">
+                            <div className="relative w-4 h-full flex items-end">
+                              <div 
+                                className="w-full bg-indigo-650 rounded-t-sm shadow-xs transition-all duration-300 group-hover:bg-indigo-500"
+                                style={{ height: `${visualPct}%` }}
+                              />
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-900 border border-slate-700 text-white text-[9px] font-mono py-1 px-1.5 rounded-sm z-10 whitespace-nowrap shadow-md">
+                                R$ {item.value.toFixed(0)}
+                              </div>
+                            </div>
+                            <span className="mt-2.5 text-[9px] font-mono text-slate-400 text-center truncate max-w-full" title={item.name}>
+                              {item.name.slice(0, 5)}..
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-5 text-[10px] text-slate-400 tracking-wider font-mono uppercase">Top Fontes de Custo do Fluxo</div>
+                  </div>
+
+                </div>
+              ) : (
+                <div className="py-14 text-center text-slate-405">
+                  <p className="text-xs">Favor carregar ou realizar novos lançamentos de despesas corporativas no período para obter gráficos.</p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // SETTINGS VIEW WITH PROFILE MANAGER
+      // ==========================================
+      function SettingsView({
+        theme,
+        onToggleTheme,
+        accounts,
+        activeAccountId,
+        onSelectAccount,
+        onAddAccount,
+        onReset,
+        onExportBackup,
+        onImportBackup
+      }) {
+        const [showAccountForm, setShowAccountForm] = useState(false);
+        const [username, setUsername] = useState('');
+        const [email, setEmail] = useState('');
+        const [fileErr, setFileErr] = useState('');
+        const [fileOk, setFileOk] = useState(false);
+
+        const handleAccountSubmit = (e) => {
+          e.preventDefault();
+          if (!username || !email) return;
+          onAddAccount(username, email);
+          setUsername('');
+          setEmail('');
+          setShowAccountForm(false);
+        };
+
+        const handleFileUpload = (e) => {
+          const uploadedFile = e.target.files?.[0];
+          if (!uploadedFile) return;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const res = JSON.parse(event.target.result);
+              if (res && (res.transactions || res.goals)) {
+                const parseErr = onImportBackup(res);
+                if (parseErr) {
+                  setFileErr(parseErr);
+                  setFileOk(false);
+                } else {
+                  setFileErr('');
+                  setFileOk(true);
+                  setTimeout(() => setFileOk(false), 3500);
+                }
+              } else {
+                setFileErr('Arquivo JSON com estrutura de backup ausente ou incompleta.');
+              }
+            } catch (err) {
+              setFileErr('Impossível realizar parse do arquivo JSON inserido.');
+            }
+          };
+          reader.readAsText(uploadedFile);
+        };
+
+        return (
+          <div className="space-y-6">
+            
+            {/* Appearance & Resets Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Appearance preferences */}
+              <div className="rounded-2xl border border-slate-150 p-5 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="border-b dark:border-slate-850 pb-2.5">
+                  <h4 className="font-display font-medium text-sm">Tema de Estilos</h4>
+                  <p className="text-[10px] text-slate-450 dark:text-slate-400">Modifique o contraste de exibição do gestor de caixas.</p>
+                </div>
+
+                <div className="flex justify-between items-center text-xs">
+                  <span>Alternador de Paleta:</span>
+                  <button 
+                    onClick={onToggleTheme}
+                    className="bg-slate-50 border p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 dark:bg-slate-800 dark:border-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-750"
+                  >
+                    {theme === 'light' ? '🌙 Ativar Modo Escuro' : '☀️ Ativar Modo Claro'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Data backups & backups imports */}
+              <div className="rounded-2xl border border-slate-150 p-5 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="border-b dark:border-slate-850 pb-2.5">
+                  <h4 className="font-display font-medium text-sm flex items-center gap-1.5">
+                    <Icon name="database" className="h-4.5 w-4.5 text-indigo-500" /> Backup do Sistema
+                  </h4>
+                  <p className="text-[10px] text-slate-450 dark:text-slate-400">Descarregue ou carregue pacotes de transações.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button onClick={onExportBackup} className="bg-slate-50 border py-2.5 text-center font-bold rounded-xl flex items-center justify-center gap-1.5 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-800 cursor-pointer">
+                    <Icon name="download" className="h-4 w-4 text-blue-500" /> Baixar Cópia
+                  </button>
+                  <label className="bg-slate-50 border py-2.5 text-center font-bold rounded-xl flex items-center justify-center gap-1.5 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-800 cursor-pointer">
+                    <Icon name="upload" className="h-4 w-4 text-indigo-550" /> Carregar
+                    <input type="file" accept=".json" onChange={handleFileUpload} className="hidden" />
+                  </label>
+                </div>
+
+                {fileErr && <p className="text-[10px] text-rose-500 font-mono text-center">{fileErr}</p>}
+                {fileOk && <p className="text-[10px] text-emerald-500 font-mono text-center">✓ Backup lido e carregado com perfeição!</p>}
+              </div>
+
+            </div>
+
+            {/* Profile database selection switches */}
+            <div className="rounded-2xl border border-slate-150 p-5 bg-white dark:bg-slate-900 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b dark:border-slate-850 pb-2.5">
+                <div>
+                  <h4 className="font-display font-medium text-sm">Contas e Perfis Gerenciais</h4>
+                  <p className="text-[10px] text-slate-405">Defina novas instâncias independentes de controle.</p>
+                </div>
+                <button 
+                  onClick={() => setShowAccountForm(!showAccountForm)} 
+                  className="text-xs font-bold text-indigo-650 hover:underline flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="plus" className="h-4.5 w-4.5" /> Adicionar Perfil
+                </button>
+              </div>
+
+              {showAccountForm && (
+                <form onSubmit={handleAccountSubmit} className="p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl max-w-md border space-y-3 dark:border-slate-800">
+                  <span className="text-xs font-bold">Novo Cliente Financeiro</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <input 
+                      type="text" 
+                      placeholder="Nome do cliente/perfil" 
+                      value={username} 
+                      onChange={(e) => setUsername(e.target.value)} 
+                      required 
+                      className="p-2 border rounded-lg bg-white dark:bg-slate-900" 
+                    />
+                    <input 
+                      type="email" 
+                      placeholder="E-mail principal" 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)} 
+                      required 
+                      className="p-2 border rounded-lg bg-white dark:bg-slate-900" 
+                    />
+                  </div>
+                  <button type="submit" className="w-full text-xs font-semibold bg-indigo-600 text-white rounded-lg py-2 cursor-pointer leading-none">Criar Cliente</button>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {accounts.map(a => {
+                  const active = a.id === activeAccountId;
+                  return (
+                    <div 
+                      key={a.id}
+                      onClick={() => onSelectAccount(a.id)}
+                      className={`p-3 border rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-800/10 cursor-pointer flex items-center space-x-3 ${active ? 'border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20' : 'dark:border-slate-800'}`}
+                    >
+                      <div className={`h-7 w-7 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0 ${a.avatarColor}`}>{a.name[0]}</div>
+                      <div className="truncate min-w-0">
+                        <span className="font-bold block text-xs leading-none">{a.name}</span>
+                        <span className="text-[9px] text-slate-400 font-mono mt-1.5 block truncate">{a.email}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Formatting reset memory */}
+            <div className="p-5 border border-rose-150 bg-rose-50/25 dark:bg-rose-950/5 dark:border-rose-900/15 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-bold text-rose-800 dark:text-rose-450 uppercase tracking-widest leading-tight">Procedimento Destrutivo</h4>
+                <p className="text-[11px] text-slate-450 dark:text-slate-400">Redefine o banco de dados interno zerando todos os lançamentos inseridos manualmente.</p>
+              </div>
+              <button onClick={onReset} className="bg-rose-500 hover:bg-rose-600 text-white py-2 px-4 rounded-xl text-xs font-bold shadow-xs cursor-pointer animate-press">Redefinir Banco</button>
+            </div>
+
+          </div>
+        );
+      }
+
+
+      // ==========================================
+      // TRANSACTION MODAL OVERLAY FORM CODE
+      // ==========================================
+      function TransactionFormView({ transaction, onSave, onClose }) {
+        const [type, setType] = useState(transaction?.type || 'gasto');
+        const [name, setName] = useState(transaction?.name || '');
+        const [value, setValue] = useState(transaction?.value || '');
+        const [category, setCategory] = useState(transaction?.category || EXPENSE_CATEGORIES[0]);
+        const [paymentMethod, setPaymentMethod] = useState(transaction?.paymentMethod || PAYMENT_METHODS[0]);
+        const [bank, setBank] = useState(transaction?.bank || BANKS[0]);
+        const [status, setStatus] = useState(transaction?.status || 'pendente');
+
+        // Dynamic select synchronization on type updates
+        useEffect(() => {
+          if (!transaction) {
+            setCategory(type === 'gasto' ? EXPENSE_CATEGORIES[0] : REVENUE_CATEGORIES[0]);
+          }
+        }, [type, transaction]);
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          onSave({
+            id: transaction?.id,
+            type,
+            name,
+            value: Number(value),
+            category,
+            paymentMethod,
+            bank,
+            status
+          });
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-center border-b pb-2 dark:border-slate-850">
+                <h4 className="font-display font-bold text-sm text-slate-900 dark:text-white">
+                  {transaction ? 'Modificar Registro Fluxo' : 'Novo Registro de Caixa'}
+                </h4>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold">✕</button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+                
+                {/* Mode selection buttons */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setType('gasto')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-center ${type === 'gasto' ? 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900' : 'border-slate-200 dark:border-slate-800'}`}
+                  >
+                    Déficit / Despesa (-)
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setType('receita')}
+                    className={`p-2.5 rounded-xl font-bold border transition text-center ${type === 'receita' ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900' : 'border-slate-200 dark:border-slate-800'}`}
+                  >
+                    Rendimento (+)
+                  </button>
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Descrição/Identificação de Fluxo</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Ex: Supermercado Mensal" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850" 
+                  />
+                </div>
+
+                {/* Value */}
+                <div>
+                  <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Valor Monetário Operado (R$)</label>
+                  <input 
+                    type="number" 
+                    step="any"
+                    required 
+                    placeholder="Ex: 125.50" 
+                    value={value} 
+                    onChange={(e) => setValue(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850" 
+                  />
+                </div>
+
+                {/* Category selectors based on type */}
+                <div>
+                  <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Segmento de Categorização</label>
+                  <select 
+                    value={category} 
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                  >
+                    {type === 'gasto' 
+                      ? EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>) 
+                      : REVENUE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)
+                    }
+                  </select>
+                </div>
+
+                {/* Bank vs Payments methods */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Meio de Transação</label>
+                    <select 
+                      value={paymentMethod} 
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                    >
+                      {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Instituição Financeira</label>
+                    <select 
+                      value={bank} 
+                      onChange={(e) => setBank(e.target.value)}
+                      className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                    >
+                      {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Liquidity Status */}
+                <div>
+                  <label className="text-[10px] tracking-wide font-mono text-slate-400 block mb-0.5">Status de Lançamento</label>
+                  <select 
+                    value={status} 
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                  >
+                    <option value="pago">Liquidado / Pago</option>
+                    <option value="pendente">Aberto / Em andamento</option>
+                    <option value="atrasado">Atrasado / Irregular</option>
+                  </select>
+                </div>
+
+                {/* Submit Actions */}
+                <div className="flex gap-2 pt-3">
+                  <button type="button" onClick={onClose} className="flex-1 p-2.5 border rounded-xl font-bold cursor-pointer hover:bg-slate-50">Cancelar</button>
+                  <button type="submit" className="flex-1 p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl cursor-pointer leading-none animate-press">Salvar Registro</button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // Render
+      const domRoot = ReactDOM.createRoot(document.getElementById('root'));
+      domRoot.render(<App />);
+    </script>
+  </body>
+</html>
